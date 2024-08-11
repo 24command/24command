@@ -1,0 +1,180 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TXT to MC Converter</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+</head>
+<body>
+    <div id="app">
+        <h2>txt转mc（有一些音符转不出来有bug如果有大佬希望可以修修（））</h2>
+        
+        <div>
+            <label>Creator: <input v-model="creator" type="text"></label><br>
+            <label>Background: <input v-model="background" type="text"></label><br>
+            <label>Offset: <input v-model="offset" type="number" step="1"></label><br>
+            <label>Sound: <input v-model="sound" type="text"></label><br>
+            <label>Title: <input v-model="title" type="text"></label><br>
+            <label>Artist: <input v-model="artist" type="text"></label><br>
+            <label>BPM: <input v-model="bpm" type="number" step="0.1"></label><br>
+        </div>
+
+        <input type="file" @change="uploadTxtFile" accept=".txt" />
+        <button @click="downloadMcFile" :disabled="!fileName">下载mc文件</button>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    fileName: "",
+                    bpm: "120",
+                    creator: "",
+                    background: "",
+                    offset: 298,
+                    sound: "",
+                    title: "",
+                    artist: "Unknown",
+                    content: [],
+                    effectList: [],
+                    mcData: {}
+                };
+            },
+            methods: {
+                uploadTxtFile(event) {
+                    const file = event.target.files[0];
+                    const reader = new FileReader();
+                    this.fileName = file.name.split(".")[0];
+
+                    reader.onload = (e) => {
+                        const lines = e.target.result.split("\r\n");
+                        this.parseTxtContent(lines);
+                    };
+                    reader.readAsText(file);
+                },
+
+                parseTxtContent(lines) {
+                    this.content = [];
+                    this.effectList = [];
+
+                    lines.forEach(line => {
+                        if (line.trim() === "") return;
+                        if (line.includes(",")) {
+                            this.effectList.push(this.parseEffectLine(line));
+                        } else {
+                            this.content.push(...this.parseNoteLine(line));
+                        }
+                    });
+
+                    this.generateMcFile();
+                },
+
+                parseNoteLine(line) {
+                    const parts = line.split("-");
+                    const columns = parts[0].split("").map(Number); 
+                    const beat = this.calculateBeat(parts[1]);
+
+                    return columns.map(column => {
+                        const noteObject = {
+                            beat: beat,
+                            column: column - 1 
+                        };
+
+                        if (parts.length === 3) {
+                            noteObject.endbeat = this.calculateBeat(parts[2]);
+                        }
+
+                        return noteObject;
+                    });
+                },
+
+                parseEffectLine(line) {
+                    const parts = line.split(",");
+                    return {
+                        beat: this.calculateBeat(parts[0]),
+                        scroll: parseFloat(parts[1])
+                    };
+                },
+
+                calculateBeat(timeStr) {
+                    const time = parseFloat(timeStr);
+                    let beats = Math.floor(time);
+                    let subBeat = (time % 1) * 4;
+
+                    if (subBeat < 0) {
+                        subBeat += 4;
+                        beats -= 1;
+                    }
+
+                    return [beats, subBeat, 4];
+                },
+
+                generateMcFile() {
+                    const finalNote = {
+                        beat: [0, 0, 1],
+                        sound: this.sound || "default.ogg",
+                        vol: 100,
+                        offset: this.offset,
+                        type: 1
+                    };
+
+                    this.mcData = {
+                        meta: {
+                            $ver: 0,
+                            creator: this.creator,
+                            background: this.background,
+                            version: "",
+                            id: 0,
+                            mode: 0,
+                            time: Math.floor(Date.now() / 1000),
+                            song: {
+                                title: this.title || this.fileName,
+                                artist: this.artist,
+                                id: 0
+                            },
+                            mode_ext: {
+                                column: 6,
+                                bar_begin: 0
+                            }
+                        },
+                        time: [{
+                            beat: [0, 0, 1],
+                            bpm: parseFloat(this.bpm)
+                        }],
+                        effect: this.effectList.map(effect => ({
+                            beat: effect.beat,
+                            scroll: effect.scroll
+                        })),
+                        note: [...this.content, finalNote],
+                        extra: {
+                            test: {
+                                divide: 4,
+                                speed: 100,
+                                save: 0,
+                                lock: 0,
+                                edit_mode: 0
+                            }
+                        }
+                    };
+                },
+
+                downloadMcFile() {
+                    const mcContent = JSON.stringify(this.mcData, null, 2);
+                    const blob = new Blob([mcContent], { type: "application/json" });
+                    const a = document.createElement("a");
+                    
+                    const fileName = this.sound.trim() ? this.sound : "你tm都没输入音频转啥转";
+                    
+                    a.href = URL.createObjectURL(blob);
+                    a.download = fileName + ".mc";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
