@@ -8,7 +8,7 @@
 </head>
 <body>
     <div id="app">
-        <h2>txt转mc（有一些音符转不出来有bug如果有大佬希望可以修修（））</h2>
+        <h2>TXT to MC Converter</h2>
         
         <div>
             <label>Creator: <input v-model="creator" type="text"></label><br>
@@ -21,7 +21,7 @@
         </div>
 
         <input type="file" @change="uploadTxtFile" accept=".txt" />
-        <button @click="downloadMcFile" :disabled="!fileName">下载mc文件</button>
+        <button @click="downloadMcFile" :disabled="!fileName">Download .mc File</button>
     </div>
 
     <script>
@@ -100,15 +100,25 @@
 
                 calculateBeat(timeStr) {
                     const time = parseFloat(timeStr);
-                    let beats = Math.floor(time);
-                    let subBeat = (time % 1) * 4;
+                    const beats = Math.floor(time);
+                    const decimalPart = time - beats;
+                    const validDenominators = [4, 6, 12, 16, 24, 32];
+                    let closestSubBeat = 0;
+                    let bestMatch = 4;
+                    let minDifference = Number.MAX_VALUE;
 
-                    if (subBeat < 0) {
-                        subBeat += 4;
-                        beats -= 1;
-                    }
+                    validDenominators.forEach(denominator => {
+                        const subBeatCandidate = Math.round(decimalPart * denominator);
+                        const difference = Math.abs(decimalPart - subBeatCandidate / denominator);
 
-                    return [beats, subBeat, 4];
+                        if (difference < minDifference) {
+                            minDifference = difference;
+                            closestSubBeat = subBeatCandidate;
+                            bestMatch = denominator;
+                        }
+                    });
+
+                    return [beats, closestSubBeat, bestMatch];
                 },
 
                 generateMcFile() {
